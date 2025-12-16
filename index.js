@@ -1048,6 +1048,24 @@ async function updateSession(chatId, step, data = {}) {
 async function clearSession(chatId) {
   await Session.findOneAndDelete({ chatId });
 }
+async function processMessage(chatId, text) {
+  if (text === '/start') {
+    await sendTelegram(
+      chatId,
+      "👋 مرحباً بك في البوت\n\nاختر طريقة الدخول:",
+      {
+        keyboard: [
+          [{ text: "🔑 دخول وكيل" }],
+          [{ text: "👤 دخول عميل" }]
+        ],
+        resize_keyboard: true
+      }
+    );
+    return;
+  }
+
+  await sendTelegram(chatId, "❓ الأمر غير معروف، أرسل /start");
+}
 
 // ============================================
 // Webhook Endpoint
