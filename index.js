@@ -1082,15 +1082,80 @@ app.post('/webhook', async (req, res) => {
     const text = (update.message.text || '').trim();
     
     // معالجة الرسالة بشكل غير متزامن
-    processMessage(chatId, text).catch(err => {
-      console.error('خطأ في معالجة الرسالة:', err);
-    });
-    
-    res.sendStatus(200);
-  } catch (error) {
-    console.error('خطأ في webhook:', error);
-    res.sendStatus(500);
+   async function processMessage(chatId, text) {
+
+  // START
+  if (text === '/start') {
+    await clearSession(chatId);
+
+    return sendTelegram(
+      chatId,
+      "👋 مرحباً بك في البوت\n\nاختر طريقة الدخول:",
+      {
+        keyboard: [
+          [{ text: "🔑 دخول وكيل" }],
+          [{ text: "👤 دخول عميل" }]
+        ],
+        resize_keyboard: true
+      }
+    );
   }
+
+  // دخول وكيل
+  if (text === "🔑 دخول وكيل") {
+    await updateSession(chatId, "AGENT_LOGIN_USERNAME");
+
+    return sendTelegram(
+      chatId,
+      "🔑 <b>تسجيل دخول وكيل</b>\n\n✏️ أرسل اسم المستخدم:",
+      { remove_keyboard: true }
+    );
+  }
+
+  // دخول عميل
+  if (text === "👤 دخول عميل") {
+    await updateSession(chatId, "CLIENT_LOGIN_USERNAME");
+
+    return sendTelegram(
+      chatId,
+      "👤 <b>تسجيل دخول عميل</b>\n\n✏️ أرسل اسم المستخدم:",
+      { remove_keyboard: true }
+    );
+  }
+
+  // الجلسة
+  const session = await getSession(chatId);
+
+  // وكيل - اسم المستخدم
+  if (session.step === "AGENT_LOGIN_USERNAME") {
+    session.data = { username: text };
+    await updateSession(chatId, "AGENT_LOGIN_PASSWORD", session.data);
+
+    return sendTelegram(chatId, "🔒 أرسل كلمة المرور:");
+  }
+
+  // وكيل - كلمة المرور
+  if (session.step === "AGENT_LOGIN_PASSWORD") {
+    const { username } = session.data;
+    const result = await loginAgent(username, text, chatId);
+
+    if (!result.ok) {
+      await clearSession(chatId);
+      return sendTelegram(chatId, "❌ بيانات الدخول غير صحيحة");
+    }
+
+    await clearSession(chatId);
+    return sendTelegram(
+      chatId,
+      `✅ أهلاً <b>${result.agent.name}</b>`,
+      getAgentKeyboard()
+    );
+  }
+
+  // افتراضي
+  await sendTelegram(chatId, "❓ الأمر غير معروف، أرسل /start");
+}
+
 });
 
 // ملاحظة: أضف هنا دوال processMessage و handleAdminCommands و handleAgentCommands و handleClientCommands
